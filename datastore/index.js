@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const _ = require('underscore');
 const counter = require('./counter');
-
+const Promise = require('bluebird');
 var items = {};
 
 // Public API - Fix these CRUD functions ///////////////////////////////////////
@@ -28,14 +28,35 @@ exports.create = (text, callback) => {
 };
 
 exports.readAll = (callback) => {
-  fs.readdir(exports.dataDir, (err, files) => {
-    if (err) {
-      console.log(err)
-    } else {
-      callback(err, _.map(files, (id) => {
-        return {id: id.slice(0,5), text: id.slice(0,5)}
-      }))
-    }
+  return new Promise(function(resolve, reject) {
+    fs.readdir(exports.dataDir, (err, files) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(files);
+      }
+    })
+  })
+  .then(function(files) {
+    return new Promise(function(resolve, reject) {
+      var storage = _.map(files, (id) => {
+        return new Promise(function(resolve,reject) {
+          fs.readFile(path.join(exports.dataDir, id), (err, data) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve({id: id.slice(0,5), text: data.toString()});
+            }
+          })
+        })
+      })
+      resolve(storage);
+    })
+    .then(function(storage){
+      Promise.all(storage).then((values) => {
+        callback(null, values)
+      })
+    })
   })
   // var data = _.map(exports.dataDir, (text, id) => {
   //   return { id, text };
